@@ -10,9 +10,9 @@ def load_model():
 
 # Cache the embeddings calculation
 @st.cache_data
-def compute_corpus_embeddings(corpus, model):
+def compute_corpus_embeddings(corpus, _model):
     """Compute and cache embeddings for the given corpus."""
-    return model.encode(corpus, convert_to_tensor=True)
+    return _model.encode(corpus, convert_to_tensor=True)
 
 # Main App
 def main():
