@@ -27,13 +27,24 @@ def highlight_query_words(text, query):
 def filter_corpus(df, filters):
     """Apply filters to the corpus dataframe."""
     filtered_df = df.copy()
+    
+    # Convert the 'date' column to datetime
+    if 'date' in filtered_df.columns:
+        filtered_df['date'] = pd.to_datetime(filtered_df['date'], errors='coerce')
+
+    # Apply date range filters
     if filters.get("start_date") and filters.get("end_date"):
+        start_date = pd.to_datetime(filters['start_date'])
+        end_date = pd.to_datetime(filters['end_date'])
         filtered_df = filtered_df[
-            (filtered_df['date'] >= filters['start_date']) & 
-            (filtered_df['date'] <= filters['end_date'])
+            (filtered_df['date'] >= start_date) & 
+            (filtered_df['date'] <= end_date)
         ]
+
+    # Apply category filter
     if filters.get("category"):
         filtered_df = filtered_df[filtered_df['category'] == filters['category']]
+    
     return filtered_df
 
 # Main App
