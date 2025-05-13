@@ -1,12 +1,13 @@
 import streamlit as st
 from sentence_transformers import SentenceTransformer, util
 import pandas as pd
+import re
 
 # Load the SentenceTransformer model
 @st.cache_resource
-def load_model():
+def load_model(model_name):
     """Load and cache the SentenceTransformer model."""
-    return SentenceTransformer('all-MiniLM-L6-v2')
+    return SentenceTransformer(model_name)
 
 # Cache the embeddings calculation
 @st.cache_data
@@ -14,16 +15,30 @@ def compute_corpus_embeddings(corpus, _model):
     """Compute and cache embeddings for the given corpus."""
     return _model.encode(corpus, convert_to_tensor=True)
 
+# Highlight matched query words in the results
+def highlight_query_words(text, query):
+    """Highlight query words in the text using a simple regex."""
+    query_words = re.escape(query).split()
+    pattern = r'|'.join(query_words)
+    highlighted_text = re.sub(pattern, lambda match: f"<mark>{match.group(0)}</mark>", text, flags=re.IGNORECASE)
+    return highlighted_text
+
 # Main App
 def main():
+    st.set_page_config(page_title="Semantic Search App", layout="wide")
+
     st.title("🔍 Semantic Search with Sentence Transformers")
-    
-    # Load model
-    model = load_model()
 
     # Sidebar settings
     st.sidebar.header("Settings")
+    model_name = st.sidebar.selectbox(
+        "Choose a SentenceTransformer model:",
+        ["all-MiniLM-L6-v2", "paraphrase-MiniLM-L12-v2", "distiluse-base-multilingual-cased-v1"]
+    )
     top_k = st.sidebar.slider("Number of top results", 1, 20, 5)
+
+    # Load model
+    model = load_model(model_name)
 
     # Upload or use default corpus
     st.sidebar.subheader("Upload Corpus File (CSV)")
@@ -58,6 +73,13 @@ def main():
     st.subheader("📄 Corpus Preview")
     st.dataframe(df.head())
 
+    # Allow users to add text to the corpus
+    st.sidebar.subheader("Add Text to Corpus")
+    new_text = st.sidebar.text_area("Enter new text to add:")
+    if st.sidebar.button("Add to Corpus") and new_text.strip():
+        df = pd.concat([df, pd.DataFrame({"text": [new_text]})], ignore_index=True)
+        st.success("Text added to corpus!")
+
     # Compute corpus embeddings
     corpus = df["text"].tolist()
     corpus_embeddings = compute_corpus_embeddings(corpus, model)
@@ -73,11 +95,19 @@ def main():
 
         # Display results
         st.subheader("🔎 Search Results")
-        results = [
-            {"Rank": idx + 1, "Text": corpus[hit['corpus_id']], "Score": hit['score']}
-            for idx, hit in enumerate(hits)
-        ]
-        st.table(results)
+        results = []
+        for idx, hit in enumerate(hits):
+            result_text = corpus[hit['corpus_id']]
+            highlighted_text = highlight_query_words(result_text, query)
+            score = hit['score']
+            results.append({"Rank": idx + 1, "Text": result_text, "Score": score})
+            st.markdown(f"**{idx + 1}.** {highlighted_text}", unsafe_allow_html=True)
+            st.caption(f"Similarity Score: {score:.4f}")
+
+        # Allow users to download results
+        result_df = pd.DataFrame(results)
+        csv = result_df.to_csv(index=False)
+        st.download_button("Download Results as CSV", data=csv, file_name="search_results.csv", mime="text/csv")
 
 # Run the app
 if __name__ == "__main__":
